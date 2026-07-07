@@ -26,6 +26,9 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# app-releases
+RationTracker_v1.0.0.apk
+
 # macOS
 .DS_Store
 *.pem

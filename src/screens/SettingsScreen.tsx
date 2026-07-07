@@ -8,6 +8,8 @@ import {
   Alert,
   ScrollView,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../components/ThemeContext';
@@ -76,7 +78,12 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-      <View style={styles.header}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Settings</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
           Configure preferences & credentials
@@ -190,6 +197,7 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

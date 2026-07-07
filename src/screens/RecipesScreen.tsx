@@ -10,6 +10,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../components/ThemeContext';
@@ -832,7 +834,11 @@ Please write down the recipe title, servings, required quantities matching my un
       )}
 
       {activeTab === 'chat' && (
-        <View style={styles.chatTabContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.chatTabContainer}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
           {!apiKeyExists ? (
             <View style={styles.emptyContainer}>
               <AlertTriangle size={60} color={colors.warning} style={{ marginBottom: 15 }} />
@@ -939,7 +945,7 @@ Please write down the recipe title, servings, required quantities matching my un
               </View>
             </View>
           )}
-        </View>
+        </KeyboardAvoidingView>
       )}
 
       {/* RECIPE DETAILS MODAL WITH SCALING AND LIVE CALCULATIONS */}
@@ -950,7 +956,10 @@ Please write down the recipe title, servings, required quantities matching my un
         onRequestClose={() => setDetailModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedRecipe?.name}</Text>
               <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
@@ -1041,7 +1050,7 @@ Please write down the recipe title, servings, required quantities matching my un
                 </View>
               )}
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1053,7 +1062,10 @@ Please write down the recipe title, servings, required quantities matching my un
         onRequestClose={() => setMealDetailModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedMeal?.name}</Text>
               <TouchableOpacity onPress={() => setMealDetailModalVisible(false)}>
@@ -1163,7 +1175,7 @@ Please write down the recipe title, servings, required quantities matching my un
                 </View>
               )}
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1175,7 +1187,10 @@ Please write down the recipe title, servings, required quantities matching my un
         onRequestClose={() => setCreateMealModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Create Meal Template</Text>
               <TouchableOpacity onPress={() => setCreateMealModalVisible(false)}>
@@ -1235,7 +1250,7 @@ Please write down the recipe title, servings, required quantities matching my un
                 <Text style={[styles.submitButtonText, { marginLeft: 8 }]}>Save Meal Template</Text>
               </TouchableOpacity>
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1247,7 +1262,10 @@ Please write down the recipe title, servings, required quantities matching my un
         onRequestClose={() => { setManualRecipeModalVisible(false); resetManualRecipeForm(); }}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Create Recipe Manually</Text>
               <TouchableOpacity onPress={() => { setManualRecipeModalVisible(false); resetManualRecipeForm(); }}>
@@ -1432,7 +1450,7 @@ Please write down the recipe title, servings, required quantities matching my un
                 <Text style={[styles.submitButtonText, { marginLeft: 8 }]}>Save Recipe</Text>
               </TouchableOpacity>
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1444,7 +1462,10 @@ Please write down the recipe title, servings, required quantities matching my un
         onRequestClose={() => setConfirmModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Confirm Recipe Ingredients</Text>
               <TouchableOpacity onPress={() => setConfirmModalVisible(false)}>
@@ -1623,7 +1644,7 @@ Please write down the recipe title, servings, required quantities matching my un
                 </View>
               )}
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 

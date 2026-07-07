@@ -9,6 +9,8 @@ import {
   Share,
   Alert,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../components/ThemeContext';
@@ -226,15 +228,20 @@ export const ShoppingScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Shopping List</Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-          Manage grocery purchases & auto-refills
-        </Text>
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Shopping List</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            Manage grocery purchases & auto-refills
+          </Text>
+        </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Low Stock Suggestions */}
         {lowStockSuggestions.length > 0 && (
           <View style={[styles.suggestionsBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -362,6 +369,7 @@ export const ShoppingScreen: React.FC = () => {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

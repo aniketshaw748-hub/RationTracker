@@ -7,9 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aniketshaw.rationtracker"
     },
     "android": {
+      "package": "com.aniketshaw.rationtracker",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,6 +26,11 @@
     "plugins": [
       "expo-sqlite",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5b958a3d-8b52-4d37-b672-bedb3f8c7898"
+      }
+    }
   }
 }

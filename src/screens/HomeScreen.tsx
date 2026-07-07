@@ -9,6 +9,8 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../components/ThemeContext';
@@ -300,7 +302,10 @@ export const HomeScreen: React.FC = () => {
         onRequestClose={() => setAddModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Add New Container</Text>
               <TouchableOpacity onPress={() => setAddModalVisible(false)}>
@@ -409,11 +414,10 @@ export const HomeScreen: React.FC = () => {
                 <Text style={styles.submitButtonText}>Create Container</Text>
               </TouchableOpacity>
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
-      {/* DETAIL & LOG MODAL */}
       <Modal
         visible={detailModalVisible}
         animationType="slide"
@@ -421,7 +425,10 @@ export const HomeScreen: React.FC = () => {
         onRequestClose={() => setDetailModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedItem?.name}</Text>
               <TouchableOpacity
@@ -506,7 +513,7 @@ export const HomeScreen: React.FC = () => {
                 </View>
               )}
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
