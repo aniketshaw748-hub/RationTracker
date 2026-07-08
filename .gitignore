@@ -28,6 +28,7 @@ yarn-error.*
 
 # app-releases
 RationTracker_v1.0.0.apk
+RationTracker_v1.0.1.apk
 
 # macOS
 .DS_Store
