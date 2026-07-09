@@ -10,25 +10,88 @@ import {
   ScrollView,
   Alert,
   KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../components/ThemeContext';
 import { useDatabase } from '../hooks/useDatabase';
 import { useSQLiteContext } from 'expo-sqlite';
 import { ContainerVisualizer } from '../components/ContainerVisualizer';
-import { calculateRestockingAlert, AlertResult } from '../utils/recommendations';
+import { calculateAllAlerts, AlertResult } from '../utils/recommendations';
 import { PantryItem } from '../database/schema';
+import { ThemeColors } from '../theme/colors';
 import { Plus, Minus, X, PlusCircle, AlertCircle, CheckCircle, Package, Trash2 } from 'lucide-react-native';
+
+// Clean, minimal Item Card. Kept at module scope so cards don't remount every
+// time HomeScreen re-renders.
+const ItemCard = ({
+  item,
+  alert,
+  colors,
+  onPress,
+}: {
+  item: PantryItem;
+  alert: AlertResult | undefined;
+  colors: ThemeColors;
+  onPress: () => void;
+}) => {
+  const getAlertColor = () => {
+    if (!alert) return colors.textSecondary;
+    if (alert.status === 'critical') return colors.error;
+    if (alert.status === 'warning') return colors.warning;
+    return colors.success;
+  };
+
+  const getAlertLabel = () => {
+    if (!alert) return 'Calculating...';
+    if (alert.mode === 'dynamic') {
+      const days = Math.round(alert.daysRemaining || 0);
+      return days === 0 ? 'Empty today' : `${days} days left`;
+    }
+    return `${Math.round(alert.fillPercentage)}% fill`;
+  };
+
+  return (
+    <TouchableOpacity
+      style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      onPress={onPress}
+    >
+      <View style={styles.cardHeader}>
+        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <View style={[styles.statusBadge, { backgroundColor: getAlertColor() + '15' }]}>
+          <Text style={[styles.statusText, { color: getAlertColor() }]}>
+            {getAlertLabel()}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.cardBody}>
+        <ContainerVisualizer
+          shape={item.shape}
+          color={item.color}
+          fillPercentage={(item.current_amount / item.capacity) * 100}
+          size={90}
+        />
+      </View>
+
+      <View style={styles.cardFooter}>
+        <Text style={[styles.amountText, { color: colors.text }]}>
+          {item.current_amount} / {item.capacity} {item.unit}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 export const HomeScreen: React.FC = () => {
   const { colors, isDark } = useTheme();
   const db = useSQLiteContext();
   const { pantryItems, addPantryItem, updatePantryItem, deletePantryItem, logInventoryChange } = useDatabase();
 
-  // Dashboard Stats
-  const [criticalCount, setCriticalCount] = useState(0);
-  const [warningCount, setWarningCount] = useState(0);
+  // Restock alerts for all items, computed in one pass and shared by the
+  // dashboard badges and every card.
+  const [alerts, setAlerts] = useState<Record<number, AlertResult>>({});
 
   // Modals
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -49,21 +112,19 @@ export const HomeScreen: React.FC = () => {
 
   const colorsList = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#4A90E2', '#9B59B6', '#808000', '#F5DEB3'];
 
-  // Load overall status stats
+  // Load restock alerts for all items
   useEffect(() => {
-    const computeStats = async () => {
-      let crit = 0;
-      let warn = 0;
-      for (const item of pantryItems) {
-        const alert = await calculateRestockingAlert(db, item.id, item.current_amount, item.capacity);
-        if (alert.status === 'critical') crit++;
-        else if (alert.status === 'warning') warn++;
-      }
-      setCriticalCount(crit);
-      setWarningCount(warn);
+    let isMounted = true;
+    calculateAllAlerts(db, pantryItems).then((map) => {
+      if (isMounted) setAlerts(map);
+    });
+    return () => {
+      isMounted = false;
     };
-    computeStats();
   }, [pantryItems, db]);
+
+  const criticalCount = pantryItems.filter((i) => alerts[i.id]?.status === 'critical').length;
+  const warningCount = pantryItems.filter((i) => alerts[i.id]?.status === 'warning').length;
 
   // Load logs for the selected item when it changes
   useEffect(() => {
@@ -179,75 +240,6 @@ export const HomeScreen: React.FC = () => {
     );
   };
 
-  // Clean, minimal Item Card (reverted back to clean white/surface design)
-  const ItemCard = ({ item }: { item: PantryItem }) => {
-    const [alertData, setAlertData] = useState<AlertResult | null>(null);
-
-    useEffect(() => {
-      let isMounted = true;
-      calculateRestockingAlert(db, item.id, item.current_amount, item.capacity).then(
-        (data) => {
-          if (isMounted) setAlertData(data);
-        }
-      );
-      return () => {
-        isMounted = false;
-      };
-    }, [item.current_amount, item.capacity, db]);
-
-    const getAlertColor = () => {
-      if (!alertData) return colors.textSecondary;
-      if (alertData.status === 'critical') return colors.error;
-      if (alertData.status === 'warning') return colors.warning;
-      return colors.success;
-    };
-
-    const getAlertLabel = () => {
-      if (!alertData) return 'Calculating...';
-      if (alertData.mode === 'dynamic') {
-        const days = Math.round(alertData.daysRemaining || 0);
-        return days === 0 ? 'Empty today' : `${days} days left`;
-      }
-      return `${Math.round(alertData.fillPercentage)}% fill`;
-    };
-
-    return (
-      <TouchableOpacity
-        style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        onPress={() => {
-          setSelectedItem(item);
-          setDetailModalVisible(true);
-        }}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <View style={[styles.statusBadge, { backgroundColor: getAlertColor() + '15' }]}>
-            <Text style={[styles.statusText, { color: getAlertColor() }]}>
-              {getAlertLabel()}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.cardBody}>
-          <ContainerVisualizer
-            shape={item.shape}
-            color={item.color}
-            fillPercentage={(item.current_amount / item.capacity) * 100}
-            size={90}
-          />
-        </View>
-
-        <View style={styles.cardFooter}>
-          <Text style={[styles.amountText, { color: colors.text }]}>
-            {item.current_amount} / {item.capacity} {item.unit}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
@@ -282,7 +274,17 @@ export const HomeScreen: React.FC = () => {
         numColumns={2}
         contentContainerStyle={styles.listContainer}
         columnWrapperStyle={styles.listRow}
-        renderItem={({ item }) => <ItemCard item={item} />}
+        renderItem={({ item }) => (
+          <ItemCard
+            item={item}
+            alert={alerts[item.id]}
+            colors={colors}
+            onPress={() => {
+              setSelectedItem(item);
+              setDetailModalVisible(true);
+            }}
+          />
+        )}
         ListFooterComponent={
           <TouchableOpacity
             style={[styles.addItemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -303,7 +305,7 @@ export const HomeScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             style={[styles.modalContent, { backgroundColor: colors.surface }]}
           >
             <View style={styles.modalHeader}>
@@ -426,7 +428,7 @@ export const HomeScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             style={[styles.modalContent, { backgroundColor: colors.surface }]}
           >
             <View style={styles.modalHeader}>

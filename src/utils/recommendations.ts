@@ -1,4 +1,5 @@
 import { type SQLiteDatabase } from 'expo-sqlite';
+import { PantryItem } from '../database/schema';
 
 export interface AlertResult {
   mode: 'static' | 'dynamic';
@@ -79,4 +80,20 @@ export async function calculateRestockingAlert(
     dailyRate: null,
     fillPercentage,
   };
+}
+
+// Compute alerts for all items in one pass; screens share this instead of
+// re-querying per card.
+export async function calculateAllAlerts(
+  db: SQLiteDatabase,
+  items: PantryItem[]
+): Promise<Record<number, AlertResult>> {
+  const results = await Promise.all(
+    items.map((item) => calculateRestockingAlert(db, item.id, item.current_amount, item.capacity))
+  );
+  const map: Record<number, AlertResult> = {};
+  items.forEach((item, i) => {
+    map[item.id] = results[i];
+  });
+  return map;
 }

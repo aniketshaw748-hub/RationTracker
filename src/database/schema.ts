@@ -74,16 +74,26 @@ export async function initializeDatabase(db: SQLiteDatabase) {
     );
   `);
 
-  // Check if we need to perform migrations (in case columns do not exist in older tables)
-  try {
-    await db.execAsync('ALTER TABLE recipes ADD COLUMN scaling_type TEXT DEFAULT "servings";');
-  } catch(e) {}
-  try {
-    await db.execAsync('ALTER TABLE recipes ADD COLUMN base_amount REAL DEFAULT 1.0;');
-  } catch(e) {}
-  try {
-    await db.execAsync('ALTER TABLE recipes ADD COLUMN base_unit TEXT DEFAULT "servings";');
-  } catch(e) {}
+  // Consumption analytics query this table by item + time range constantly
+  await db.execAsync(
+    'CREATE INDEX IF NOT EXISTS idx_log_item_time ON inventory_log(pantry_item_id, timestamp);'
+  );
+
+  // Versioned migrations (v1: scaling columns added to recipes after first release)
+  const versionRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
+  if ((versionRow?.user_version ?? 0) < 1) {
+    // Columns may already exist on installs created after the columns were added to CREATE TABLE
+    try {
+      await db.execAsync('ALTER TABLE recipes ADD COLUMN scaling_type TEXT DEFAULT "servings";');
+    } catch(e) {}
+    try {
+      await db.execAsync('ALTER TABLE recipes ADD COLUMN base_amount REAL DEFAULT 1.0;');
+    } catch(e) {}
+    try {
+      await db.execAsync('ALTER TABLE recipes ADD COLUMN base_unit TEXT DEFAULT "servings";');
+    } catch(e) {}
+    await db.execAsync('PRAGMA user_version = 1;');
+  }
 
   // Seed default pantry items if table is empty
   const pantryCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM pantry_items;');

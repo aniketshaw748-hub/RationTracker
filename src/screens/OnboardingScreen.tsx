@@ -15,7 +15,7 @@ import { useDatabase } from '../hooks/useDatabase';
 import { saveApiKey } from '../utils/gemini';
 import { ContainerVisualizer } from '../components/ContainerVisualizer';
 import { Sparkles, ArrowRight, Check, Key, Clipboard, ShoppingBag } from 'lucide-react-native';
-import * as SecureStore from 'expo-secure-store';
+import { setPreference } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -83,7 +83,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
 
   const handleFinish = async () => {
     try {
-      await SecureStore.setItemAsync('ration_tracker_onboarding_completed', 'true');
+      await setPreference('ration_tracker_onboarding_completed', 'true');
       onComplete();
     } catch (error) {
       console.error(error);

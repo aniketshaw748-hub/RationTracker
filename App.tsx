@@ -3,9 +3,10 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { SQLiteProvider } from 'expo-sqlite';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import * as SecureStore from 'expo-secure-store';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { initializeDatabase } from './src/database/schema';
+import { getPreference } from './src/utils/storage';
 import { ThemeProvider, useTheme } from './src/components/ThemeContext';
 import { DatabaseProvider } from './src/hooks/useDatabase';
 
@@ -24,6 +25,7 @@ const Tab = createBottomTabNavigator();
 
 function MainAppNavigator() {
   const { colors, theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -35,8 +37,9 @@ function MainAppNavigator() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          // Keep the bar clear of the Android gesture bar (edge-to-edge)
+          height: 60 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
@@ -85,7 +88,7 @@ function AppContent() {
   useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        const completed = await SecureStore.getItemAsync('ration_tracker_onboarding_completed');
+        const completed = await getPreference('ration_tracker_onboarding_completed');
         if (completed === 'true') {
           setOnboarded(true);
         }
@@ -122,13 +125,15 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SQLiteProvider databaseName="ration_tracker.db" onInit={initializeDatabase}>
-      <ThemeProvider>
-        <DatabaseProvider>
-          <AppContent />
-        </DatabaseProvider>
-      </ThemeProvider>
-    </SQLiteProvider>
+    <SafeAreaProvider>
+      <SQLiteProvider databaseName="ration_tracker.db" onInit={initializeDatabase}>
+        <ThemeProvider>
+          <DatabaseProvider>
+            <AppContent />
+          </DatabaseProvider>
+        </ThemeProvider>
+      </SQLiteProvider>
+    </SafeAreaProvider>
   );
 }
 

@@ -16,9 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../components/ThemeContext';
 import { useDatabase } from '../hooks/useDatabase';
 import { useSQLiteContext } from 'expo-sqlite';
-import { calculateRestockingAlert } from '../utils/recommendations';
+import { calculateAllAlerts } from '../utils/recommendations';
 import { PantryItem } from '../database/schema';
-import * as SecureStore from 'expo-secure-store';
+import { getPreference, setPreference } from '../utils/storage';
 import { Plus, Trash2, Share2, Clipboard, ShoppingCart, Check, RefreshCw, X } from 'lucide-react-native';
 
 interface CustomShoppingItem {
@@ -48,7 +48,7 @@ export const ShoppingScreen: React.FC = () => {
   useEffect(() => {
     const loadList = async () => {
       try {
-        const saved = await SecureStore.getItemAsync(STORAGE_KEY);
+        const saved = await getPreference(STORAGE_KEY);
         if (saved) {
           setShoppingList(JSON.parse(saved));
         }
@@ -63,7 +63,7 @@ export const ShoppingScreen: React.FC = () => {
   const saveList = async (list: CustomShoppingItem[]) => {
     try {
       setShoppingList(list);
-      await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(list));
+      await setPreference(STORAGE_KEY, JSON.stringify(list));
     } catch (e) {
       console.error(e);
     }
@@ -72,9 +72,10 @@ export const ShoppingScreen: React.FC = () => {
   // Compute low stock items dynamically
   useEffect(() => {
     const checkSuggestions = async () => {
+      const alerts = await calculateAllAlerts(db, pantryItems);
       const suggestions: typeof lowStockSuggestions = [];
       for (const item of pantryItems) {
-        const alert = await calculateRestockingAlert(db, item.id, item.current_amount, item.capacity);
+        const alert = alerts[item.id];
         // Suggest if warning or critical
         if (alert.status === 'warning' || alert.status === 'critical') {
           const needed = Math.max(0, item.capacity - item.current_amount);
@@ -230,7 +231,7 @@ export const ShoppingScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >

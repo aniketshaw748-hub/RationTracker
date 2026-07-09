@@ -158,18 +158,24 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const logInventoryChange = async (pantryItemId: number, amount: number): Promise<void> => {
-    const item = await db.getFirstAsync<PantryItem>('SELECT * FROM pantry_items WHERE id = ?;', [pantryItemId]);
-    if (!item) throw new Error('Pantry item not found');
-
-    const newAmount = Math.max(0, Math.min(item.capacity, item.current_amount + amount));
     const now = Math.floor(Date.now() / 1000);
 
     await db.withTransactionAsync(async () => {
+      const item = await db.getFirstAsync<PantryItem>('SELECT * FROM pantry_items WHERE id = ?;', [pantryItemId]);
+      if (!item) throw new Error('Pantry item not found');
+
+      const newAmount = Math.max(0, Math.min(item.capacity, item.current_amount + amount));
+      // Log the delta actually applied, not the requested one, so
+      // consumption analytics stay in sync with real stock levels.
+      const appliedDelta = newAmount - item.current_amount;
+
       await db.runAsync('UPDATE pantry_items SET current_amount = ? WHERE id = ?;', [newAmount, pantryItemId]);
-      await db.runAsync(
-        'INSERT INTO inventory_log (pantry_item_id, amount, timestamp) VALUES (?, ?, ?);',
-        [pantryItemId, amount, now]
-      );
+      if (appliedDelta !== 0) {
+        await db.runAsync(
+          'INSERT INTO inventory_log (pantry_item_id, amount, timestamp) VALUES (?, ?, ?);',
+          [pantryItemId, appliedDelta, now]
+        );
+      }
     });
 
     await refreshPantryItems();
@@ -207,30 +213,31 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const cookRecipe = async (recipeId: number, multiplier = 1): Promise<{ success: boolean; missing?: string[] }> => {
-    const ingredients = await db.getAllAsync<RecipeIngredient>(
-      'SELECT ri.*, pi.name, pi.current_amount FROM recipe_ingredients ri JOIN pantry_items pi ON ri.pantry_item_id = pi.id WHERE ri.recipe_id = ?;',
-      [recipeId]
-    );
-
     const missing: string[] = [];
-    ingredients.forEach((ing) => {
-      const required = ing.amount * multiplier;
-      const current = (ing as any).current_amount;
-      if (current < required) {
-        missing.push(`${ing.pantry_item_name || (ing as any).name} (Need: ${required}, Have: ${current})`);
-      }
-    });
-
-    if (missing.length > 0) {
-      return { success: false, missing };
-    }
-
     const now = Math.floor(Date.now() / 1000);
+
+    // Read, check, and deduct inside one transaction so stock can't change
+    // between the sufficiency check and the deduction.
     await db.withTransactionAsync(async () => {
+      const ingredients = await db.getAllAsync<RecipeIngredient>(
+        'SELECT ri.*, pi.name, pi.current_amount FROM recipe_ingredients ri JOIN pantry_items pi ON ri.pantry_item_id = pi.id WHERE ri.recipe_id = ?;',
+        [recipeId]
+      );
+
+      ingredients.forEach((ing) => {
+        const required = ing.amount * multiplier;
+        const current = (ing as any).current_amount;
+        if (current < required) {
+          missing.push(`${ing.pantry_item_name || (ing as any).name} (Need: ${required}, Have: ${current})`);
+        }
+      });
+
+      if (missing.length > 0) return; // nothing written yet, nothing to roll back
+
       for (const ing of ingredients) {
         const required = ing.amount * multiplier;
         const current = (ing as any).current_amount;
-        const newAmount = Math.max(0, current - required);
+        const newAmount = current - required;
 
         await db.runAsync('UPDATE pantry_items SET current_amount = ? WHERE id = ?;', [newAmount, ing.pantry_item_id]);
         await db.runAsync(
@@ -239,6 +246,10 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         );
       }
     });
+
+    if (missing.length > 0) {
+      return { success: false, missing };
+    }
 
     await refreshPantryItems();
     return { success: true };
@@ -294,72 +305,74 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     mealId: number,
     recipeQuantities: { [recipeId: number]: number }
   ): Promise<{ success: boolean; missing?: string[] }> => {
-    // 1. Fetch meal recipes
-    const mealRecipes = await db.getAllAsync<Recipe>(
-      `SELECT r.* FROM recipes r
-       JOIN meal_recipes mr ON mr.recipe_id = r.id
-       WHERE mr.meal_id = ?;`,
-      [mealId]
-    );
+    const missing: string[] = [];
+    const now = Math.floor(Date.now() / 1000);
 
-    if (mealRecipes.length === 0) {
-      return { success: false, missing: ['No recipes in this meal template'] };
-    }
-
-    // 2. Fetch and aggregate all required ingredients scaled individually
-    const ingredientDemands: { 
-      [key: number]: { needed: number; name: string; current: number; unit: string } 
-    } = {};
-
-    for (const r of mealRecipes) {
-      const targetQuantity = recipeQuantities[r.id] ?? r.base_amount;
-      const multiplier = targetQuantity / r.base_amount;
-
-      const ingredients = await db.getAllAsync<RecipeIngredient>(
-        `SELECT ri.*, pi.name, pi.current_amount, pi.unit 
-         FROM recipe_ingredients ri 
-         JOIN pantry_items pi ON ri.pantry_item_id = pi.id 
-         WHERE ri.recipe_id = ?;`,
-        [r.id]
+    // Read, aggregate, check, and deduct inside one transaction so stock
+    // can't change between the sufficiency check and the deduction.
+    await db.withTransactionAsync(async () => {
+      // 1. Fetch meal recipes
+      const mealRecipes = await db.getAllAsync<Recipe>(
+        `SELECT r.* FROM recipes r
+         JOIN meal_recipes mr ON mr.recipe_id = r.id
+         WHERE mr.meal_id = ?;`,
+        [mealId]
       );
 
-      for (const ing of ingredients) {
-        const currentAmount = (ing as any).current_amount;
-        const name = (ing as any).name;
-        const unit = (ing as any).unit;
-        const scaledAmount = ing.amount * multiplier;
+      if (mealRecipes.length === 0) {
+        missing.push('No recipes in this meal template');
+        return;
+      }
 
-        if (ingredientDemands[ing.pantry_item_id]) {
-          ingredientDemands[ing.pantry_item_id].needed += scaledAmount;
-        } else {
-          ingredientDemands[ing.pantry_item_id] = {
-            needed: scaledAmount,
-            name,
-            current: currentAmount,
-            unit
-          };
+      // 2. Fetch and aggregate all required ingredients scaled individually
+      const ingredientDemands: {
+        [key: number]: { needed: number; name: string; current: number; unit: string }
+      } = {};
+
+      for (const r of mealRecipes) {
+        const targetQuantity = recipeQuantities[r.id] ?? r.base_amount;
+        const multiplier = targetQuantity / r.base_amount;
+
+        const ingredients = await db.getAllAsync<RecipeIngredient>(
+          `SELECT ri.*, pi.name, pi.current_amount, pi.unit
+           FROM recipe_ingredients ri
+           JOIN pantry_items pi ON ri.pantry_item_id = pi.id
+           WHERE ri.recipe_id = ?;`,
+          [r.id]
+        );
+
+        for (const ing of ingredients) {
+          const currentAmount = (ing as any).current_amount;
+          const name = (ing as any).name;
+          const unit = (ing as any).unit;
+          const scaledAmount = ing.amount * multiplier;
+
+          if (ingredientDemands[ing.pantry_item_id]) {
+            ingredientDemands[ing.pantry_item_id].needed += scaledAmount;
+          } else {
+            ingredientDemands[ing.pantry_item_id] = {
+              needed: scaledAmount,
+              name,
+              current: currentAmount,
+              unit
+            };
+          }
         }
       }
-    }
 
-    // 3. Check for stock shortages
-    const missing: string[] = [];
-    Object.entries(ingredientDemands).forEach(([idStr, demand]) => {
-      if (demand.current < demand.needed) {
-        missing.push(`${demand.name} (Need: ${Math.round(demand.needed)}${demand.unit}, Have: ${demand.current}${demand.unit})`);
-      }
-    });
+      // 3. Check for stock shortages
+      Object.entries(ingredientDemands).forEach(([idStr, demand]) => {
+        if (demand.current < demand.needed) {
+          missing.push(`${demand.name} (Need: ${Math.round(demand.needed)}${demand.unit}, Have: ${demand.current}${demand.unit})`);
+        }
+      });
 
-    if (missing.length > 0) {
-      return { success: false, missing };
-    }
+      if (missing.length > 0) return; // nothing written yet, nothing to roll back
 
-    // 4. Deduct ingredients and log in a transaction
-    const now = Math.floor(Date.now() / 1000);
-    await db.withTransactionAsync(async () => {
+      // 4. Deduct ingredients and log
       for (const [idStr, demand] of Object.entries(ingredientDemands)) {
         const id = parseInt(idStr);
-        const newAmount = Math.max(0, demand.current - demand.needed);
+        const newAmount = demand.current - demand.needed;
 
         await db.runAsync('UPDATE pantry_items SET current_amount = ? WHERE id = ?;', [newAmount, id]);
         await db.runAsync(
@@ -368,6 +381,10 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         );
       }
     });
+
+    if (missing.length > 0) {
+      return { success: false, missing };
+    }
 
     await refreshPantryItems();
     return { success: true };

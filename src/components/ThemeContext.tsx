@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { lightTheme, darkTheme, ThemeColors } from '../theme/colors';
-import * as SecureStore from 'expo-secure-store';
+import { getPreference, setPreference } from '../utils/storage';
 
 type ThemeType = 'light' | 'dark';
 
@@ -44,14 +44,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Load persisted theme preference and accent color
     const loadPreferences = async () => {
       try {
-        const savedTheme = await SecureStore.getItemAsync(THEME_STORAGE_KEY);
+        const savedTheme = await getPreference(THEME_STORAGE_KEY);
         if (savedTheme === 'light' || savedTheme === 'dark') {
           setTheme(savedTheme);
         } else {
           setTheme(systemColorScheme === 'dark' ? 'dark' : 'light');
         }
 
-        const savedAccent = await SecureStore.getItemAsync(ACCENT_STORAGE_KEY);
+        const savedAccent = await getPreference(ACCENT_STORAGE_KEY);
         if (savedAccent && /^#[0-9A-F]{6}$/i.test(savedAccent)) {
           setAccentColorState(savedAccent);
         }
@@ -67,7 +67,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
     try {
-      await SecureStore.setItemAsync(THEME_STORAGE_KEY, newTheme);
+      await setPreference(THEME_STORAGE_KEY, newTheme);
     } catch (e) {
       console.error('Failed to save theme preference', e);
     }
@@ -76,7 +76,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setAccentColor = async (hex: string) => {
     setAccentColorState(hex);
     try {
-      await SecureStore.setItemAsync(ACCENT_STORAGE_KEY, hex);
+      await setPreference(ACCENT_STORAGE_KEY, hex);
     } catch (e) {
       console.error('Failed to save accent color', e);
     }

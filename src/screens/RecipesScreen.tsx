@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -46,6 +46,12 @@ export const RecipesScreen: React.FC = () => {
 
   // Video URL Input State
   const [videoUrlInput, setVideoUrlInput] = useState('');
+
+  // Import-recipe-text modal state (Alert.prompt is iOS-only, so Android needs a real modal)
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [importText, setImportText] = useState('');
+
+  const chatScrollRef = useRef<ScrollView>(null);
 
   // View Recipe Details State
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -691,16 +697,7 @@ Please write down the recipe title, servings, required quantities matching my un
 
               <TouchableOpacity
                 style={[styles.parseQuickButton, { borderColor: colors.secondary }]}
-                onPress={() => {
-                  Alert.prompt(
-                    'Import Custom Recipe',
-                    'Paste your recipe instructions, or write a description. We will parse it with AI.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Import', onPress: (text?: string) => text && handleParseRecipe(text) },
-                    ]
-                  );
-                }}
+                onPress={() => setImportModalVisible(true)}
               >
                 <Sparkles size={14} color={colors.secondary} />
                 <Text style={[styles.parseQuickButtonText, { color: colors.secondary }]}>Import AI</Text>
@@ -835,7 +832,7 @@ Please write down the recipe title, servings, required quantities matching my un
 
       {activeTab === 'chat' && (
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
           style={styles.chatTabContainer}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
@@ -870,7 +867,8 @@ Please write down the recipe title, servings, required quantities matching my un
               <ScrollView
                 style={styles.chatScrollView}
                 contentContainerStyle={styles.chatContent}
-                ref={(ref) => ref?.scrollToEnd({ animated: true })}
+                ref={chatScrollRef}
+                onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
               >
                 {chatMessages.length === 0 && (
                   <View style={styles.chatWelcome}>
@@ -957,7 +955,7 @@ Please write down the recipe title, servings, required quantities matching my un
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             style={[styles.modalContent, { backgroundColor: colors.surface }]}
           >
             <View style={styles.modalHeader}>
@@ -1063,7 +1061,7 @@ Please write down the recipe title, servings, required quantities matching my un
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             style={[styles.modalContent, { backgroundColor: colors.surface }]}
           >
             <View style={styles.modalHeader}>
@@ -1188,7 +1186,7 @@ Please write down the recipe title, servings, required quantities matching my un
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             style={[styles.modalContent, { backgroundColor: colors.surface }]}
           >
             <View style={styles.modalHeader}>
@@ -1263,7 +1261,7 @@ Please write down the recipe title, servings, required quantities matching my un
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             style={[styles.modalContent, { backgroundColor: colors.surface }]}
           >
             <View style={styles.modalHeader}>
@@ -1463,7 +1461,7 @@ Please write down the recipe title, servings, required quantities matching my un
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             style={[styles.modalContent, { backgroundColor: colors.surface }]}
           >
             <View style={styles.modalHeader}>
@@ -1643,6 +1641,54 @@ Please write down the recipe title, servings, required quantities matching my un
                   </TouchableOpacity>
                 </View>
               )}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* IMPORT RECIPE TEXT MODAL (replaces iOS-only Alert.prompt) */}
+      <Modal
+        visible={importModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setImportModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Import Custom Recipe</Text>
+              <TouchableOpacity onPress={() => setImportModalVisible(false)}>
+                <X size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalForm}>
+              <Text style={[styles.descText, { color: colors.textSecondary }]}>
+                Paste your recipe instructions, or write a description. We will parse it with AI.
+              </Text>
+              <TextInput
+                style={[styles.modalInput, { height: 140, color: colors.text, borderColor: colors.border, textAlignVertical: 'top', paddingTop: 10 }]}
+                placeholder="e.g. Pancakes for 4: mix 200g flour, 300ml milk, 2 eggs..."
+                placeholderTextColor={colors.textSecondary}
+                multiline
+                value={importText}
+                onChangeText={setImportText}
+              />
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: colors.secondary, marginTop: 16 }]}
+                onPress={() => {
+                  if (!importText.trim()) return;
+                  setImportModalVisible(false);
+                  handleParseRecipe(importText.trim());
+                  setImportText('');
+                }}
+              >
+                <Sparkles size={20} color="#FFF" />
+                <Text style={[styles.submitButtonText, { marginLeft: 8 }]}>Import with AI</Text>
+              </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
